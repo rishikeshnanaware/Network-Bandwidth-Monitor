@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+from collections import deque
 import psutil
 import time
 import csv
