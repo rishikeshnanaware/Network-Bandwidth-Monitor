@@ -21,7 +21,7 @@ def log_network_stats(filename, timestamp, upload_speed, download_speed, total_u
         writer.writerow([timestamp, upload_speed, download_speed, total_upload, total_download])
 
 # Function to predict future network usage based on past data
-def predict_network_usage(upload_speeds, download_speeds, future_steps=10):
+def predict_network_usage(upload_speeds, download_speeds, future_steps=5):  # Changed to 5
     if len(upload_speeds) < 2 or len(download_speeds) < 2:
         print("Not enough data for prediction.")
         return [], []
@@ -55,18 +55,10 @@ def monitor_network_usage_with_prediction(interval=1, log_file='network_usage.cs
     prev_sent, prev_recv = get_network_stats()
     total_sent, total_recv = prev_sent, prev_recv
 
-    # Initialize plotting variables
-    timestamps = deque(maxlen=60)
-    upload_speeds = deque(maxlen=60)
-    download_speeds = deque(maxlen=60)
-
-    plt.ion()
-    fig, ax = plt.subplots()
-    line1, = ax.plot([], [], label="Upload Speed (B/s)", color="blue")
-    line2, = ax.plot([], [], label="Download Speed (B/s)", color="orange")
-    ax.legend()
-    ax.set_xlabel("Time")
-    ax.set_ylabel("Speed (Bytes/s)")
+    # Initialize data storage
+    timestamps = []
+    upload_speeds = []
+    download_speeds = []
 
     print("Monitoring network usage...")
 
@@ -87,31 +79,53 @@ def monitor_network_usage_with_prediction(interval=1, log_file='network_usage.cs
         log_network_stats(log_file, timestamp, upload_speed, download_speed, total_sent, total_recv)
 
         # Print current stats
-        print(f"{timestamp} | Upload Speed: {upload_speed:.2f} B/s | Download Speed: {download_speed:.2f} B/s | Total Upload: {total_sent / (1024 ** 2):.2f} MB | Total Download: {total_recv / (1024 ** 2):.2f} MB")
+        print(f"{timestamp} | Actual Upload Speed: {upload_speed:.2f} B/s | Actual Download Speed: {download_speed:.2f} B/s | Total Upload: {total_sent / (1024 ** 2):.2f} MB | Total Download: {total_recv / (1024 ** 2):.2f} MB")
 
-        # Update plotting data
+        # Store data
         timestamps.append(timestamp)
         upload_speeds.append(upload_speed)
         download_speeds.append(download_speed)
 
-        # Update plot
-        line1.set_data(range(len(upload_speeds)), upload_speeds)
-        line2.set_data(range(len(download_speeds)), download_speeds)
-        ax.relim()
-        ax.autoscale_view()
-        plt.draw()
-        plt.pause(0.01)
-
         # Predict future usage after sufficient data is collected
-        if len(upload_speeds) >= 10:
-            future_upload, future_download = predict_network_usage(upload_speeds, download_speeds, future_steps=5)
-            print("Predicted Future Upload Speeds:", future_upload)
-            print("Predicted Future Download Speeds:", future_download)
+        if len(upload_speeds) >= 2:
+            future_upload, future_download = predict_network_usage(upload_speeds, download_speeds, future_steps=5)  # Changed to 5 steps
+            print(f"Predicted Next 5 Upload Speeds: {future_upload[:5]} | Predicted Next 5 Download Speeds: {future_download[:5]}")
 
         prev_sent, prev_recv = curr_sent, curr_recv
 
-    plt.ioff()
+    # Final graph after monitoring
+    plot_network_usage_and_predictions(upload_speeds, download_speeds, timestamps)
+
+
+def plot_network_usage_and_predictions(upload_speeds, download_speeds, timestamps):
+    if len(upload_speeds) < 2 or len(download_speeds) < 2:
+        print("Not enough data to plot predictions.")
+        return
+
+    # Predict future speeds
+    future_steps = 5  # Changed to 5
+    future_upload, future_download = predict_network_usage(upload_speeds, download_speeds, future_steps=future_steps)
+
+    # Extend timestamps for predictions
+    future_timestamps = [f"Future {i+1}" for i in range(future_steps)]
+    extended_timestamps = timestamps + future_timestamps
+
+    # Plot actual and predicted speeds
+    plt.figure(figsize=(12, 6))
+    plt.plot(range(len(upload_speeds)), upload_speeds, label="Actual Upload Speed", color="blue")
+    plt.plot(range(len(download_speeds)), download_speeds, label="Actual Download Speed", color="orange")
+    plt.plot(range(len(upload_speeds), len(extended_timestamps)), future_upload, label="Predicted Upload Speed", linestyle="--", color="green")
+    plt.plot(range(len(download_speeds), len(extended_timestamps)), future_download, label="Predicted Download Speed", linestyle="--", color="red")
+
+    plt.xticks(range(len(extended_timestamps)), extended_timestamps, rotation=45, fontsize=8)
+    plt.xlabel("Time")
+    plt.ylabel("Speed (Bytes/s)")
+    plt.title("Actual and Predicted Network Speeds")
+    plt.legend()
+    plt.tight_layout()
+    plt.grid()
     plt.show()
+
 
 if __name__ == "__main__":
     monitor_network_usage_with_prediction(interval=1, log_file='network_usage.csv', duration=60)
